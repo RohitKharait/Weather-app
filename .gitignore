@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+env/
+*.egg-info/
+
+# Environment
+.env
+*.env
+
+# AWS Keys (important!)
+*.pem
+*.key
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+
+# Docker
+.dockerignore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# GitHub Actions
+.github/
