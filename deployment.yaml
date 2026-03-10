@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: weather-app
-        image: rohitkharait/weather-app:v1
+        image: krishna112/weather-app:v3
         ports:
         - containerPort: 5000
 
