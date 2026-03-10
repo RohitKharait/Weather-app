@@ -18,9 +18,9 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build, run and push Docker image
+      - name: Build and Push Docker image
         run: |
-          docker build -t weather-app:3 .
-          docker run -d -p 5000:5000 --name weather-app weather-app:3
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/weather-app:3 .
+          docker run -d -p 5000:5000 --name weather-app ${{ secrets.DOCKERHUB_USERNAME }}/weather-app:3
           echo "Pushing Docker image to Docker Hub..."
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/weather-app:3
