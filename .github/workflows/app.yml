@@ -20,7 +20,6 @@ jobs:
 
       - name: Build and Push Docker image
         run: |
-         - name: Build and Push Docker image
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/weather-app:${{ github.run_number }} .
           echo "Pushing Docker image to Docker Hub..."
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/weather-app:${{ github.run_number }}
