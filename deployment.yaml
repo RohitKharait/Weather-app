@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: weather-app
-        image: krishna112/weather-app:v6
+        image: krishna112/weather-app:v7
         ports:
         - containerPort: 5000
 
@@ -28,10 +28,17 @@ metadata:
   name: weather-app
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: arn:aws:acm:us-west-1:314969690343:certificate/xxxx-xxxx-xxxx
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
 spec:
   type: LoadBalancer
   selector:
     app: weather-app
   ports:
-    - port: 80
+    - name: http
+      port: 80
+      targetPort: 5000
+    - name: https
+      port: 443
       targetPort: 5000
