@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: weather-app
-        image: krishna112/weather-app:v4
+        image: krishna112/weather-app:v6
         ports:
         - containerPort: 5000
 
@@ -26,6 +26,8 @@ apiVersion: v1
 kind: Service
 metadata:
   name: weather-app
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
 spec:
   type: LoadBalancer
   selector:
