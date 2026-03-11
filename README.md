@@ -2,7 +2,7 @@
 
 > A Flask-based live weather application deployed on Amazon EKS with a complete CI/CD pipeline — from VSCode to browser.
 
-🌐 **Live at:** [weather.rohitkharait.online](http://weather.rohitkharait.online)
+🌐 **Live at:** [weather.rohitkharait.online](https://weather.rohitkharait.online)
 
 ---
 
