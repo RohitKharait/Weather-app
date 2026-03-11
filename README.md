@@ -165,8 +165,8 @@ The ELB was created and appeared healthy, but the app returned no response. The 
 
 ---
 
-### Issue 5 — Domain Required a Port Number in the URL
-Initially the Service was configured with `port: 5000`, which meant the ELB exposed port 5000 and users had to type `:5000` in the URL. Changing the Service `port` to `80` made the ELB listen on the standard HTTP port, so the app became accessible at just the plain domain name with no port.
+### Issue 5 — HTTPS Not Accessible (Port 443 Missing on ELB)
+After adding SSL annotations to the Service, the app was still not accessible via HTTPS. The ELB only had a TCP:80 listener and port 443 was never created. The root cause was that updating annotations on an existing Service does not update the ELB — the Load Balancer Controller only reads annotations at creation time. The fix was to delete the Service completely and reapply it, which forced a fresh ELB to be created with both port 80 and port 443 listeners. The ACM certificate ARN was also found to be a placeholder value — the real ARN was fetched from ACM and updated in the Service annotation before reapplying.
 
 ---
 
