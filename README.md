@@ -1,286 +1,184 @@
-# 🌤️ Maharashtra Live Weather App — Full CI/CD on EKS
+# 🌤️ Maharashtra Live Weather App
 
-A Flask-based live weather application with a complete CI/CD pipeline from VSCode to browser, deployed on Amazon EKS, accessible at **[weather.rohitkharait.online](http://weather.rohitkharait.online)**.
+> A Flask-based live weather application deployed on Amazon EKS with a complete CI/CD pipeline — from VSCode to browser.
+
+🌐 **Live at:** [weather.rohitkharait.online](http://weather.rohitkharait.online)
 
 ---
 
-## 🔄 Full CI/CD Pipeline
+## 📸 Live App
+
+![Maharashtra Live Weather App](./app-screenshot.png)
+
+![Maharashtra Live Weather App 2](./app-screenshot2.png)
+
+---
+
+## 🔄 CI/CD Pipeline
+
+Every code change pushed to the `main` branch on GitHub automatically triggers a GitHub Actions workflow that builds the Docker image, pushes it to Docker Hub, and deploys the latest version to the EKS cluster — no manual steps needed.
 
 ```
-👨‍💻 Developer (VSCode)
-     ↓  git push
-GitHub Repository (main branch)
-     ↓  triggers automatically
-GitHub Actions Workflow
-     ├── 1. Checkout code
-     ├── 2. Build Docker image
-     ├── 3. Push image → Docker Hub (krishna112/weather-app)
-     ├── 4. Configure AWS credentials
-     ├── 5. aws eks update-kubeconfig
-     └── 6. kubectl apply -f deployment.yaml
-               ↓
-     EKS Cluster "nana" (us-west-1)
-               ↓
-     AWS ELB (internet-facing, port 80)
-               ↓
-     Route 53 CNAME → weather.rohitkharait.online
-               ↓
-     🌐 Browser
+👨‍💻 VSCode  →  GitHub (main branch)  →  GitHub Actions
+      →  Docker Hub  →  EKS Cluster  →  AWS ELB
+      →  Route 53  →  🌐 Browser
 ```
 
 ---
 
-## 🏗️ Architecture Stack
+## 🏗️ Architecture
+
+Traffic flows from the user's browser through a Route 53 CNAME record to an AWS Elastic Load Balancer, which distributes requests across 4 Flask app pods running inside the EKS cluster.
 
 ```
-User Browser
-     ↓
-weather.rohitkharait.online   (Route 53 CNAME)
-     ↓
-AWS ELB (port 80)             (AWS Load Balancer Controller)
-     ↓
-EKS Cluster "nana"            (us-west-1)
-     ↓
-weather-app pods x4           (Flask on port 5000)
+Browser (HTTPS)
+  → weather.rohitkharait.online  (Route 53 CNAME)
+  → AWS ELB  (port 443 — SSL terminated here via ACM)
+  → EKS Cluster "nana"  (us-west-1)
+  → Flask App Pods x4  (port 5000 — plain HTTP internally)
 ```
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Component          | Detail                               |
+| Layer              | Technology                           |
 |--------------------|--------------------------------------|
 | IDE                | VSCode                               |
 | CLI Environment    | AWS CloudShell                       |
 | Source Control     | GitHub                               |
 | CI/CD              | GitHub Actions                       |
-| Container Registry | Docker Hub (`krishna112/weather-app`)|
-| Cloud Provider     | AWS                                  |
-| Kubernetes         | Amazon EKS (cluster: `nana`)         |
-| Region             | `us-west-1`                          |
-| App                | Flask (Python) Weather App           |
+| Container Registry | Docker Hub                           |
 | Container Image    | `krishna112/weather-app:v6`          |
+| Cloud Provider     | AWS                                  |
+| Kubernetes         | Amazon EKS — cluster `nana`          |
+| Region             | us-west-1                            |
+| Application        | Flask (Python)                       |
 | Replicas           | 4 pods                               |
-| Service Type       | LoadBalancer (AWS ELB)               |
-| DNS                | Route 53 (CNAME)                     |
-| Domain             | `weather.rohitkharait.online`        |
+| Load Balancer      | AWS ELB (internet-facing)            |
+| DNS                | AWS Route 53 (CNAME)                 |
+| SSL Certificate    | AWS ACM (Amazon Certificate Manager) |
+| Security Scanning  | Trivy (image vulnerability scanner)  |
+| Domain             | weather.rohitkharait.online          |
 
 ---
 
 ## ⚙️ GitHub Actions Workflow
 
-Workflow file located at `.github/workflows/deploy.yml` in the repository.
+The workflow file lives at `.github/workflows/deploy.yml`. It runs on every push to `main` and performs these steps in order:
+
+1. Checks out the latest code from the repository
+2. Logs into Docker Hub using stored secrets
+3. Builds a fresh Docker image from the latest code
+4. **Runs Trivy security scan** on the image — pipeline fails if CRITICAL or HIGH vulnerabilities are found
+5. Pushes the image to Docker Hub only if the scan passes
+6. Configures AWS credentials for EKS access
+7. Updates kubeconfig to connect kubectl to the cluster
+8. Applies the Kubernetes manifests to deploy the new version
 
 ---
 
-## 🔐 GitHub Secrets Required
+## 🔐 GitHub Secrets
 
-| Secret Name             | Description                   |
+These four secrets must be added to the repository for the workflow to function:
+
+| Secret Name             | Purpose                       |
 |-------------------------|-------------------------------|
-| `DOCKER_USERNAME`       | Docker Hub username           |
-| `DOCKER_PASSWORD`       | Docker Hub password/token     |
-| `AWS_ACCESS_KEY_ID`     | AWS IAM user access key       |
-| `AWS_SECRET_ACCESS_KEY` | AWS IAM user secret key       |
+| `DOCKER_USERNAME`       | Docker Hub login              |
+| `DOCKER_PASSWORD`       | Docker Hub password or token  |
+| `AWS_ACCESS_KEY_ID`     | AWS IAM access key            |
+| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key            |
 
-> Add at: **GitHub Repo → Settings → Secrets and variables → Actions → New repository secret**
+> **Where to add:** GitHub Repo → Settings → Secrets and variables → Actions → New repository secret
+
+
+---
+
+## 🔍 Trivy Image Security Scanning
+
+Trivy is an open-source vulnerability scanner by Aqua Security. It is integrated into the GitHub Actions pipeline to scan the Docker image for known vulnerabilities before it is pushed to Docker Hub or deployed to EKS.
+
+The scan checks for vulnerabilities rated **HIGH** and **CRITICAL** across the OS packages and Python dependencies inside the image. If any are found, the pipeline stops immediately and the image is not deployed — ensuring only clean, safe images reach production.
+
+**How it works in the pipeline:**
+
+- Trivy scans the locally built image before it is pushed anywhere
+- Results are displayed in a table format in the GitHub Actions log
+- Pipeline fails automatically on HIGH or CRITICAL findings
+- Push to Docker Hub and deploy to EKS only happen after a clean scan
 
 ---
 
 ## 📦 Kubernetes Manifests
 
-### Deployment
+Manifests are defined in `deployment.yaml` at the repository root.
 
-See `deployment.yaml` in the repository.
+**Deployment** — Runs 4 replicas of the Flask weather app. Each pod pulls the latest image from Docker Hub and listens on port 5000.
 
-### Service (LoadBalancer)
-
-See `deployment.yaml` in the repository.
+**Service** — A LoadBalancer type service that tells AWS to provision an internet-facing ELB. It listens on port 80 (HTTP) and port 443 (HTTPS). SSL is terminated at the ELB using the ACM certificate — traffic is then forwarded internally to the Flask app on port 5000 as plain HTTP.
 
 ---
 
 ## 🚀 One-Time Infrastructure Setup
 
-> All commands below were run in **AWS CloudShell** (no local setup required). Open it at: **AWS Console → CloudShell icon (top navbar)**
+All setup was done through **AWS CloudShell** — no local installation required. CloudShell is a browser-based terminal inside the AWS Console that comes pre-loaded with the AWS CLI and kubectl.
 
-### 1. Configure EKS Access
-```bash
-aws eks update-kubeconfig --region us-west-1 --name nana
-```
+**1. Connect kubectl to EKS**
+Used the AWS CLI to update the local kubeconfig file so kubectl could authenticate and communicate with the `nana` cluster in `us-west-1`.
 
-### 2. Add IAM User to EKS Access Entries
-```bash
-aws eks create-access-entry \
-  --cluster-name nana \
-  --principal-arn arn:aws:iam::<account-id>:user/<username> \
-  --region us-west-1
+**2. Grant IAM User Access to EKS**
+The IAM user `EKS` was added to the cluster using the EKS Access Entries API and assigned the `AmazonEKSClusterAdminPolicy` at the cluster level. This grants full admin access to manage workloads.
 
-aws eks associate-access-policy \
-  --cluster-name nana \
-  --principal-arn arn:aws:iam::<account-id>:user/<username> \
-  --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
-  --access-scope type=cluster \
-  --region us-west-1
-```
+**3. Tag Subnets for the Load Balancer**
+The two public subnets in the VPC were tagged so the AWS Load Balancer Controller could discover them automatically when creating the ELB.
 
-### 3. Tag Subnets for Load Balancer
-```bash
-VPC_ID=$(aws eks describe-cluster --name nana \
-  --region us-west-1 \
-  --query "cluster.resourcesVpcConfig.vpcId" \
-  --output text)
+**4. Open Security Group Port**
+An inbound rule was added to the cluster's security group to allow HTTP traffic on port 80 from the internet.
 
-aws ec2 create-tags \
-  --resources <subnet-id-1> <subnet-id-2> \
-  --tags \
-    Key=kubernetes.io/role/elb,Value=1 \
-    Key=kubernetes.io/cluster/nana,Value=shared \
-  --region us-west-1
-```
+**5. Request SSL Certificate via ACM**
+An SSL certificate was requested through AWS Certificate Manager (ACM) for the domain `weather.rohitkharait.online`. DNS validation was used — ACM provided a CNAME record which was added to Route 53, and within a few minutes the certificate status changed to Issued. The certificate ARN was then added to the Kubernetes Service annotations so the ELB could use it for HTTPS termination.
 
-### 4. Allow Traffic in Security Group
-```bash
-SG_ID=$(aws eks describe-cluster --name nana \
-  --region us-west-1 \
-  --query "cluster.resourcesVpcConfig.clusterSecurityGroupId" \
-  --output text)
-
-aws ec2 authorize-security-group-ingress \
-  --group-id $SG_ID \
-  --protocol tcp \
-  --port 80 \
-  --cidr 0.0.0.0/0 \
-  --region us-west-1
-```
-
-### 5. Create Route 53 DNS Record
-
-Done manually via **AWS Console → Route 53 → Hosted Zones → Create Record**
-- Type: `CNAME`
-- Name: `weather.rohitkharait.online`
-- Value: ELB DNS name
+**6. Create DNS Record**
+A CNAME record was manually created in Route 53 pointing `weather.rohitkharait.online` to the ELB DNS name. This allows users to access the app using a clean domain name instead of the raw ELB URL.
 
 ---
 
-## ⚠️ Issues & Troubleshooting
+## ⚠️ Issues Faced & How They Were Fixed
 
-> 💡 **Tip:** All infrastructure commands were run using **AWS CloudShell** — no local CLI setup needed. CloudShell comes pre-configured with AWS credentials, `kubectl`, and `aws` CLI out of the box.
-
----
-
-### Issue 1: kubectl Authentication Error
-**Error:**
-```
-couldn't get current server API group list: the server has asked for the client to provide credentials
-```
-**Cause:** IAM user was not authorized in the EKS cluster.
-
-**Fix:** Add IAM user via EKS Access Entries API (cluster used `API_AND_CONFIG_MAP` auth mode).
-```bash
-aws eks create-access-entry --cluster-name nana \
-  --principal-arn arn:aws:iam::<account-id>:user/EKS \
-  --region us-west-1
-
-aws eks associate-access-policy --cluster-name nana \
-  --principal-arn arn:aws:iam::<account-id>:user/EKS \
-  --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
-  --access-scope type=cluster --region us-west-1
-```
+### Issue 1 — kubectl Could Not Authenticate
+The IAM user running kubectl was not recognized by the EKS cluster, so every command was rejected with a credentials error. This happened because EKS clusters on version 1.28+ no longer use the old `aws-auth` ConfigMap for access control. Instead they use the new Access Entries API. The fix was to add the IAM user through that API and attach the cluster admin policy.
 
 ---
 
-### Issue 2: `aws-auth` ConfigMap Not Found
-**Error:**
-```
-Error from server (NotFound): configmaps "aws-auth" not found
-```
-**Cause:** EKS cluster (v1.28+) uses the new **Access Entries API** instead of the legacy `aws-auth` ConfigMap.
-
-**Fix:** Use `aws eks create-access-entry` and `aws eks associate-access-policy` commands instead.
+### Issue 2 — aws-auth ConfigMap Was Missing
+When trying to manually edit the `aws-auth` ConfigMap to grant access, Kubernetes returned a "not found" error. This confirmed that the cluster was using the newer Access Entries system exclusively, so the ConfigMap approach was abandoned entirely.
 
 ---
 
-### Issue 3: Load Balancer Failed to Build Model
-**Error:**
-```
-Failed build model due to unable to resolve at least one subnet
-(0 match VPC and tags: [kubernetes.io/role/internal-elb])
-```
-**Cause:** Subnets were not tagged for the AWS Load Balancer Controller.
-
-**Fix:** Tag public subnets with:
-```bash
-aws ec2 create-tags \
-  --resources <subnet-id-1> <subnet-id-2> \
-  --tags \
-    Key=kubernetes.io/role/elb,Value=1 \
-    Key=kubernetes.io/cluster/nana,Value=shared
-```
+### Issue 3 — Load Balancer Could Not Find Subnets
+After applying the Service manifest, the AWS Load Balancer Controller failed to create the ELB because it could not find any subnets matching the required tags. The public subnets in the VPC were missing the `kubernetes.io/role/elb` and `kubernetes.io/cluster/nana` tags. Once those tags were added, the ELB was provisioned successfully.
 
 ---
 
-### Issue 4: ELB Created but App Not Reachable
-**Cause:** Service `targetPort` was set to `80` but Flask app runs on port `5000`.
-
-**Fix:** Update service to forward correctly:
-```yaml
-ports:
-  - port: 80          # ELB listens on 80
-    targetPort: 5000  # Flask app port
-```
-
-Also open Security Group inbound rules for port `80` and NodePort range `30000-32767`.
+### Issue 4 — App Was Unreachable Through the ELB
+The ELB was created and appeared healthy, but the app returned no response. The cause was a port mismatch — the Service was forwarding traffic to port 80 on the pods, but the Flask app was actually listening on port 5000. Updating `targetPort` to 5000 in the Service manifest resolved it.
 
 ---
 
-### Issue 5: URL Requires Port Number
-**Cause:** Service `port` was set to `5000` so ELB exposed port `5000`, requiring `http://dns:5000`.
-
-**Fix:** Set `port: 80` in the Service so the app is accessible at just `http://dns` without a port.
-
----
-
-## 🔧 Useful Commands
-
-```bash
-# Check pods
-kubectl get pods -o wide
-
-# Watch logs
-kubectl logs -f deployment/weather-app
-
-# Scale replicas
-kubectl scale deployment weather-app --replicas=2
-
-# Check service & ELB
-kubectl get svc weather-app
-
-# Check endpoints
-kubectl get endpoints weather-app
-
-# Delete everything
-kubectl delete -f deployment.yaml
-```
-
----
-
-## 📸 Live App Screenshot
-
-![Maharashtra Live Weather App](./app-screenshot.png)
-
-![Maharashtra Live Weather App 2](./app-screenshot2.png)
-
-> App running live at **weather.rohitkharait.online** showing real-time weather for 9 Maharashtra cities — deployed automatically via GitHub Actions CI/CD pipeline.
+### Issue 5 — Domain Required a Port Number in the URL
+Initially the Service was configured with `port: 5000`, which meant the ELB exposed port 5000 and users had to type `:5000` in the URL. Changing the Service `port` to `80` made the ELB listen on the standard HTTP port, so the app became accessible at just the plain domain name with no port.
 
 ---
 
 ## ✅ Final Result
 
-| Check                                     | Status |
+| What Was Achieved                         | Status |
 |-------------------------------------------|--------|
-| GitHub Actions CI/CD Pipeline             | ✅     |
-| Docker Image pushed to Docker Hub         | ✅     |
-| EKS Cluster Running                       | ✅     |
-| 4 Pods Running                            | ✅     |
-| ELB Provisioned                           | ✅     |
-| Route 53 DNS Configured                   | ✅     |
-| App Live at `weather.rohitkharait.online` | ✅     |
+| CI/CD pipeline via GitHub Actions         | ✅     |
+| Trivy security scan on every build        | ✅     |
+| Docker image auto-built and pushed        | ✅     |
+| EKS cluster running with 4 pods           | ✅     |
+| AWS ELB with port 80 and 443              | ✅     |
+| SSL certificate via ACM                   | ✅     |
+| Route 53 DNS configured                   | ✅     |
+| App live at weather.rohitkharait.online   | ✅     |
